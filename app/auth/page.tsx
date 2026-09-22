@@ -1,9 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
+import { createClient } from "../../lib/supabase";
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -15,14 +13,16 @@ export default function AuthPage() {
     setBusy(true);
     setMessage("");
     try {
-      if (!SUPABASE_URL || !SUPABASE_KEY) throw new Error("Configure Supabase environment variables first.");
-      const res = await fetch(SUPABASE_URL + "/auth/v1/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
-        body: JSON.stringify({ email, create_user: false })
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: window.location.origin + "/auth/callback"
+        }
       });
-      if (!res.ok) throw new Error(await res.text());
-      setMessage("If this account is registered, a sign-in link/code has been sent.");
+      if (error) throw error;
+      setMessage("If this account is registered, a secure sign-in link has been sent.");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to start sign-in.");
     } finally {
@@ -37,11 +37,12 @@ export default function AuthPage() {
         <h1>Pravidh CRM</h1>
         <p className="muted">Secure sales operations workspace.</p>
         <form onSubmit={signIn}>
-          <label>Business email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" required />
+          <label htmlFor="email">Business email</label>
+          <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" autoComplete="email" required />
           <button disabled={busy}>{busy ? "Sending…" : "Send sign-in link"}</button>
         </form>
         {message && <p className="authMessage">{message}</p>}
+        <p className="muted authHint">Only registered CRM team members can access the workspace.</p>
       </section>
     </main>
   );
