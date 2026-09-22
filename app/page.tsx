@@ -1,20 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "../lib/supabase";
 
 type Lead = {
-  lead_id: string;
-  company_name: string;
-  website?: string;
-  industry?: string;
-  location?: string;
-  contact_name?: string;
-  email?: string;
-  score: number;
-  status: string;
-  trigger?: string;
-  service_fit?: string;
-  next_follow_up_at?: string;
+  lead_id: string; company_name: string; website?: string; industry?: string;
+  location?: string; contact_name?: string; email?: string; score: number;
+  status: string; trigger?: string; service_fit?: string;
 };
 
 const API = process.env.NEXT_PUBLIC_CRM_API_URL ?? "";
@@ -25,22 +17,26 @@ export default function Home() {
   const [error, setError] = useState("");
 
   async function load() {
-    if (!API) {
-      setError("Configure NEXT_PUBLIC_CRM_API_URL and authentication before using the dashboard.");
-      return;
-    }
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
-      const res = await fetch(API + "/hot-leads", { credentials: "include" });
+      if (!API) throw new Error("Configure NEXT_PUBLIC_CRM_API_URL.");
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("No active CRM session.");
+      const res = await fetch(API + "/hot-leads", {
+        headers: { Authorization: "Bearer " + session.access_token }
+      });
       if (!res.ok) throw new Error(await res.text());
       const body = await res.json();
       setLeads(body.data ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load CRM data");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
+  }
+
+  async function signOut() {
+    await createClient().auth.signOut();
+    window.location.href = "/auth";
   }
 
   useEffect(() => { load(); }, []);
@@ -50,12 +46,13 @@ export default function Home() {
       <aside>
         <div className="brand">PRAVIDH <span>CRM</span></div>
         <nav><a className="active">Dashboard</a><a>Leads</a><a>Pipeline</a><a>Activities</a><a>Follow-ups</a></nav>
+        <button onClick={signOut}>Sign out</button>
       </aside>
       <section className="content">
         <header><div><p className="eyebrow">SALES OPERATIONS</p><h1>Command Center</h1><p className="muted">Turn qualified prospects into conversations and customers.</p></div><button onClick={load}>↻ Refresh</button></header>
         <div className="stats">
           <div><small>HOT LEADS</small><strong>{leads.length}</strong><span>Score ≥ 70</span></div>
-          <div><small>PIPELINE</small><strong>—</strong><span>Connect API</span></div>
+          <div><small>PIPELINE</small><strong>—</strong><span>Live CRM</span></div>
           <div><small>FOLLOW-UPS</small><strong>—</strong><span>Due today</span></div>
           <div><small>OPEN DEALS</small><strong>—</strong><span>Live CRM</span></div>
         </div>
